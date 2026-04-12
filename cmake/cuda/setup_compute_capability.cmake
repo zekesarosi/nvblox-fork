@@ -25,6 +25,17 @@ if(NOT ${CMAKE_CUDA_ARCHITECTURES_SET_EXTERNALLY})
       STATUS
         "Detecting CCs of GPUs : ${CUDA_COMPUTE_CAPABILITIES_SOURCE} - Success (found CCs : ${RUN_OUTPUT_VAR})"
     )
+    # Cap detected CC at the maximum the CUDA toolkit supports.
+    # CUDA 12.x supports up to sm_90; Blackwell (CC 120) requires CUDA 13+.
+    find_package(CUDAToolkit QUIET)
+    if(CUDAToolkit_VERSION_MAJOR AND CUDAToolkit_VERSION_MAJOR LESS 13)
+      if(RUN_OUTPUT_VAR GREATER 90)
+        message(WARNING
+          "GPU compute capability ${RUN_OUTPUT_VAR} exceeds CUDA ${CUDAToolkit_VERSION_MAJOR} maximum (90). "
+          "Capping CMAKE_CUDA_ARCHITECTURES to 90. PTX will be JIT-compiled at runtime.")
+        set(RUN_OUTPUT_VAR 90)
+      endif()
+    endif()
     set(CMAKE_CUDA_ARCHITECTURES
         ${RUN_OUTPUT_VAR}
         CACHE STRING "Compute capabilities of CUDA-capable GPUs" FORCE)

@@ -15,6 +15,7 @@ limitations under the License.
 */
 #pragma once
 
+#include <cstdint>
 #include <glog/logging.h>
 #include <array>
 #include <functional>
