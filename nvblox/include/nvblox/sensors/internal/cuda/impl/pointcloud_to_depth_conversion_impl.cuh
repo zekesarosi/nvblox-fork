@@ -163,23 +163,37 @@ void depthImageFromPointcloudGPU(
   const Eigen::Quaternionf q_L_S_scanStart(T_L_S_scanStart.rotation());
   const Vector3f t_L_S_scanStart = T_L_S_scanStart.translation();
 
-  Eigen::Quaternionf q_L_S_scanEnd;
-  Vector3f t_L_S_scanEnd;
-  Time scan_duration_ms;
+  Eigen::Quaternionf q_L_S_scanEnd = Eigen::Quaternionf::Identity();
+  Vector3f t_L_S_scanEnd = Vector3f::Zero();
+  Time scan_duration_ms(0);
+  // Whether motion compensation is actually applied in the kernel. We start from
+  // the request and disable it if the required data is missing or invalid. This
+  // makes the conversion robust to corrupted / converging LiDAR timestamps
+  // (e.g. while PTP is still converging) instead of aborting via CHECK.
+  bool apply_motion_compensation = use_lidar_motion_compensation;
   if (use_lidar_motion_compensation) {
     // Check if we have the necessary data for motion compensation:
-    // - Valid scan duration (time difference between start and end transforms)
     // - Per-point timestamps (relative to scan start)
-    CHECK(pointcloud.timestamps_ms().has_value());
-    CHECK(maybe_T_L_S_scanEnd.has_value());
-    CHECK(maybe_scan_duration_ms.has_value());
-    CHECK(maybe_scan_duration_ms.value() > Time(0));
-
-    // If motion compensation is enabled,
-    // we extract the lidar scan data from the optionals.
-    q_L_S_scanEnd = Eigen::Quaternionf(maybe_T_L_S_scanEnd->rotation());
-    t_L_S_scanEnd = maybe_T_L_S_scanEnd->translation();
-    scan_duration_ms = maybe_scan_duration_ms.value();
+    // - Scan end transform
+    // - Valid (strictly positive) scan duration
+    const bool has_required_data =
+        pointcloud.timestamps_ms().has_value() &&
+        maybe_T_L_S_scanEnd.has_value() && maybe_scan_duration_ms.has_value() &&
+        maybe_scan_duration_ms.value() > Time(0);
+    if (has_required_data) {
+      // If motion compensation is enabled,
+      // we extract the lidar scan data from the optionals.
+      q_L_S_scanEnd = Eigen::Quaternionf(maybe_T_L_S_scanEnd->rotation());
+      t_L_S_scanEnd = maybe_T_L_S_scanEnd->translation();
+      scan_duration_ms = maybe_scan_duration_ms.value();
+    } else {
+      LOG_EVERY_N(WARNING, 100)
+          << "LiDAR motion compensation was requested but required data is "
+             "missing or invalid (per-point timestamps / scan-end pose / "
+             "scan duration). Converting pointcloud without motion "
+             "compensation.";
+      apply_motion_compensation = false;
+    }
   }
 
   // Resize the image if required.
@@ -207,7 +221,7 @@ void depthImageFromPointcloudGPU(
       pointcloud.pointsConstPtr(), pointcloud.timestampsConstPtr(),
       lidar_sensor, q_L_S_scanStart, t_L_S_scanStart, q_L_S_scanEnd,
       t_L_S_scanEnd, scan_duration_ms, pointcloud.size(),
-      use_lidar_motion_compensation, depth_image_ptr->dataPtr());
+      apply_motion_compensation, depth_image_ptr->dataPtr());
   checkCudaErrors(cudaPeekAtLastError());
 
   // Cleanup: Set remaining sentinel values (max float) to 0.
