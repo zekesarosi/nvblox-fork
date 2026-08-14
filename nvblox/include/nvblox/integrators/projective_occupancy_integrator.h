@@ -15,6 +15,8 @@ limitations under the License.
 */
 #pragma once
 
+#include <limits>
+
 #include "nvblox/integrators/internal/projective_integrator.h"
 #include "nvblox/integrators/weighting_function.h"
 
@@ -98,6 +100,30 @@ class ProjectiveOccupancyIntegrator
   /// meters
   void occupied_region_half_width_m(float occupied_region_half_width_m);
 
+  /// A parameter getter
+  /// The occupancy probability applied along a LiDAR no-return (miss) ray.
+  /// @returns the miss ray occupancy probability
+  float miss_ray_occupancy_probability() const;
+
+  /// A parameter setter
+  /// See miss_ray_occupancy_probability().
+  /// @param value the miss ray occupancy probability
+  void miss_ray_occupancy_probability(float value);
+
+  /// A parameter getter
+  /// Measured depth at or above which a pixel is treated as a synthetic
+  /// no-return sentinel rather than a surface. Infinity disables miss-ray
+  /// handling, which is the default.
+  /// @returns the miss ray depth threshold in meters
+  float miss_ray_min_depth_m() const;
+
+  /// A parameter setter
+  /// See miss_ray_min_depth_m(). Pass the sentinel depth written by the
+  /// pointcloud-to-depth conversion; a small margin is subtracted internally.
+  /// Pass a non-positive value to disable miss-ray handling.
+  /// @param no_return_free_depth_m the sentinel depth in meters
+  void miss_ray_sentinel_depth_m(float no_return_free_depth_m);
+
   /// For voxels with a radius, allocate memory and give a small weight and
   /// truncation distance, effectively making these voxels free-space. Does not
   /// affect voxels which are already observed.
@@ -128,6 +154,9 @@ class ProjectiveOccupancyIntegrator
       kUnobservedRegionOccupancyProbabilityParamDesc.default_value);
   float occupied_region_half_width_m_ =
       kOccupiedRegionHalfWidthMParamDesc.default_value;
+  float miss_ray_log_odds_ = logOddsFromProbability(
+      kMissRayOccupancyProbabilityParamDesc.default_value);
+  float miss_ray_min_depth_m_ = std::numeric_limits<float>::infinity();
 
   // Functor which defines the voxel update operation.
   unified_ptr<UpdateOccupancyVoxelFunctor> update_functor_host_ptr_;

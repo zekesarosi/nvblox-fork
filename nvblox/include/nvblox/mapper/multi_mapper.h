@@ -175,7 +175,8 @@ class MultiMapper {
       const SensorType& lidar_sensor, bool use_lidar_motion_compensation,
       const std::optional<Transform>& T_L_S_scanEnd = std::nullopt,
       const std::optional<Time>& scan_duration_ms = std::nullopt,
-      const std::optional<Time>& update_time_ms = std::nullopt);
+      const std::optional<Time>& update_time_ms = std::nullopt,
+      const float no_return_free_depth_m = 0.0f);
 
   /// @brief Integrates a depth camera with detection boxes into the
   /// reconstruction (for mapping type kStaticTsdf/kStaticOccupancy/kDynamic).

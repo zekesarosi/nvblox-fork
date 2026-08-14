@@ -86,7 +86,8 @@ void Mapper::integrateDepth(const Pointcloud& pointcloud,
                             const SensorType& lidar_sensor,
                             bool use_lidar_motion_compensation,
                             const std::optional<Transform>& T_L_S_scanEnd,
-                            const std::optional<Time>& scan_duration_ms) {
+                            const std::optional<Time>& scan_duration_ms,
+                            const float no_return_free_depth_m) {
   CHECK(lidar_sensor.sensor_modality() == SensorModality::kLidar)
       << "Pointcloud integration is only intended for lidar sensors";
   // Direct pointcloud integration is not supported,
@@ -95,7 +96,7 @@ void Mapper::integrateDepth(const Pointcloud& pointcloud,
   depthImageFromPointcloudGPU(pointcloud, T_L_S_scanStart, lidar_sensor,
                               use_lidar_motion_compensation, T_L_S_scanEnd,
                               scan_duration_ms, &depth_frame_from_pointcloud_,
-                              *cuda_stream_);
+                              *cuda_stream_, no_return_free_depth_m);
 
   // Integrate the depth image.
   integrateDepth(depth_frame_from_pointcloud_, T_L_S_scanStart, lidar_sensor);

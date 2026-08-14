@@ -39,6 +39,10 @@ namespace nvblox {
 /// @param maybe_scan_duration_ms The duration of the scan
 /// @param depth_image_ptr The depth image to write to
 /// @param cuda_stream The CUDA stream to use
+/// @param no_return_free_depth_m If > 0, organized NaN / zero-range beams
+///        write this depth instead of leaving the pixel invalid. Set beyond
+///        max integration + occupied half-width so the ray carves free and
+///        does not paint an occupied band.
 template <typename SensorType>
 void depthImageFromPointcloudGPU(
     const Pointcloud& pointcloud,                         // NOLINT
@@ -48,6 +52,7 @@ void depthImageFromPointcloudGPU(
     const std::optional<Transform>& maybe_T_L_S_scanEnd,  // NOLINT
     const std::optional<Time>& maybe_scan_duration_ms,    // NOLINT
     DepthImage* depth_image_ptr,                          // NOLINT
-    const CudaStream& cuda_stream);
+    const CudaStream& cuda_stream,
+    const float no_return_free_depth_m = 0.0f);
 
 }  // namespace nvblox

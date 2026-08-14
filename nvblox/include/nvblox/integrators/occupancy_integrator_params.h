@@ -38,6 +38,15 @@ constexpr Param<float>::Description kOccupiedRegionHalfWidthMParamDesc{
     "occupied_region_half_width_m", 0.1f,
     "Half the width of the region which is considered as occupied."};
 
+constexpr Param<float>::Description kMissRayOccupancyProbabilityParamDesc{
+    "miss_ray_occupancy_probability", 0.48f,
+    "The inverse sensor model occupancy probability applied along a LiDAR "
+    "no-return (miss) ray. Only used when lidar_no_return_free_depth_m is "
+    "enabled. Must be weaker (closer to 0.5) than "
+    "free_region_occupancy_probability: at coarse voxels a thin obstacle "
+    "shares a voxel with the sky behind it, so a miss ray carrying the full "
+    "free prior erases it."};
+
 struct OccupancyIntegratorParams {
   Param<float> free_region_occupancy_probability{
       kFreeRegionOccupancyProbabilityParamDesc};
@@ -46,5 +55,7 @@ struct OccupancyIntegratorParams {
   Param<float> unobserved_region_occupancy_probability{
       kUnobservedRegionOccupancyProbabilityParamDesc};
   Param<float> occupied_region_half_width_m{kOccupiedRegionHalfWidthMParamDesc};
+  Param<float> miss_ray_occupancy_probability{
+      kMissRayOccupancyProbabilityParamDesc};
 };
 }  // namespace nvblox

@@ -48,6 +48,8 @@ void ProjectiveOccupancyIntegrator::setFunctorParameters(
       unobserved_region_log_odds_;
   update_functor_host_ptr_->occupied_region_half_width_m_ =
       occupied_region_half_width_m_;
+  update_functor_host_ptr_->miss_ray_log_odds_ = miss_ray_log_odds_;
+  update_functor_host_ptr_->miss_ray_min_depth_m_ = miss_ray_min_depth_m_;
 
   // Make sure all blocks that are considered
   // occupied by the sensor model are updated.
@@ -105,6 +107,34 @@ void ProjectiveOccupancyIntegrator::occupied_region_half_width_m(
   occupied_region_half_width_m_ = occupied_region_half_width_m;
 }
 
+float ProjectiveOccupancyIntegrator::miss_ray_occupancy_probability() const {
+  return probabilityFromLogOdds(miss_ray_log_odds_);
+}
+
+void ProjectiveOccupancyIntegrator::miss_ray_occupancy_probability(
+    float value) {
+  CHECK(value >= 0.f && value <= 1.f) << "Probability must be in [0, 1].";
+  miss_ray_log_odds_ = logOddsFromProbability(value);
+}
+
+float ProjectiveOccupancyIntegrator::miss_ray_min_depth_m() const {
+  return miss_ray_min_depth_m_;
+}
+
+void ProjectiveOccupancyIntegrator::miss_ray_sentinel_depth_m(
+    float no_return_free_depth_m) {
+  if (no_return_free_depth_m <= 0.f) {
+    miss_ray_min_depth_m_ = std::numeric_limits<float>::infinity();
+    return;
+  }
+  // Sit just under the sentinel. Nearest-neighbour interpolation reproduces it
+  // exactly and linear interpolation only runs across neighbours that agree,
+  // so the only values landing in this band are sentinels.
+  constexpr float kSentinelMarginM = 0.5f;
+  miss_ray_min_depth_m_ =
+      std::max(0.f, no_return_free_depth_m - kSentinelMarginM);
+}
+
 std::string ProjectiveOccupancyIntegrator::getIntegratorName() const {
   return "occupancy";
 }
@@ -131,6 +161,8 @@ parameters::ParameterTreeNode ProjectiveOccupancyIntegrator::getParameterTree(
                             unobserved_region_log_odds_),
           ParameterTreeNode("occupied_region_half_width_m:",
                             occupied_region_half_width_m_),
+          ParameterTreeNode("miss_ray_log_odds:", miss_ray_log_odds_),
+          ParameterTreeNode("miss_ray_min_depth_m:", miss_ray_min_depth_m_),
           ProjectiveIntegrator<OccupancyVoxel>::getParameterTree(),
       });
 }

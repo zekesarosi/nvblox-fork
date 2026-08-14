@@ -78,5 +78,6 @@ limitations under the License.
       const bool use_lidar_motion_compensation,                              \
       const std::optional<Transform>& T_L_S_scanEnd,                         \
       const std::optional<Time>& scan_duration_ms,                           \
-      DepthImage* depth_image_ptr, const CudaStream& cuda_stream);           \
+      DepthImage* depth_image_ptr, const CudaStream& cuda_stream,            \
+      const float no_return_free_depth_m);                                   \
   }  // namespace nvblox

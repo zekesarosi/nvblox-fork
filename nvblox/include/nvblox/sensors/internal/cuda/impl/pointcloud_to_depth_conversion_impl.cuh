@@ -51,6 +51,7 @@ __global__ void depthImageFromPointcloudKernel(
     const Time scan_duration_ms,               // NOLINT
     const int size,                            // NOLINT
     const bool apply_motion_compensation,      // NOLINT
+    const float no_return_free_depth_m,        // NOLINT
     float* depth_image) {
   const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -61,7 +62,24 @@ __global__ void depthImageFromPointcloudKernel(
   // Read a point from global memory
   Vector3f point = points[idx];
 
-  if (isnan(point.x()) || isnan(point.y()) || isnan(point.z())) {
+  // Ouster encodes no-return as NaN xyz (range==0). Those beams never
+  // project, so the pixel stays invalid and occupancy never carves free
+  // along the ray (sky through an old pole). For organized clouds, write a
+  // far free-ray depth at the beam's (row, col).
+  const bool no_return = isnan(point.x()) || isnan(point.y()) ||
+                         isnan(point.z()) || (point.squaredNorm() < 1e-8f);
+  if (no_return) {
+    if (no_return_free_depth_m > 0.0f &&
+        size == lidar_sensor.rows() * lidar_sensor.cols()) {
+      const int row = idx / lidar_sensor.cols();
+      const int col = idx % lidar_sensor.cols();
+      if (row >= 0 && row < lidar_sensor.rows() && col >= 0 &&
+          col < lidar_sensor.cols()) {
+        atomicMinFloat(
+            &image::access(row, col, lidar_sensor.cols(), depth_image),
+            no_return_free_depth_m);
+      }
+    }
     return;
   }
 
@@ -150,7 +168,8 @@ void depthImageFromPointcloudGPU(
     const std::optional<Transform>& maybe_T_L_S_scanEnd,  // NOLINT
     const std::optional<Time>& maybe_scan_duration_ms,    // NOLINT
     DepthImage* depth_image_ptr,                          // NOLINT
-    const CudaStream& cuda_stream) {
+    const CudaStream& cuda_stream,
+    const float no_return_free_depth_m) {
   timing::Timer timer("pointcloud/depth_image_from_pointcloud");
   CHECK(lidar_sensor.sensor_modality() == SensorModality::kLidar)
       << "Pointcloud to depth image conversion is only intended for lidar "
@@ -221,7 +240,8 @@ void depthImageFromPointcloudGPU(
       pointcloud.pointsConstPtr(), pointcloud.timestampsConstPtr(),
       lidar_sensor, q_L_S_scanStart, t_L_S_scanStart, q_L_S_scanEnd,
       t_L_S_scanEnd, scan_duration_ms, pointcloud.size(),
-      apply_motion_compensation, depth_image_ptr->dataPtr());
+      apply_motion_compensation, no_return_free_depth_m,
+      depth_image_ptr->dataPtr());
   checkCudaErrors(cudaPeekAtLastError());
 
   // Cleanup: Set remaining sentinel values (max float) to 0.

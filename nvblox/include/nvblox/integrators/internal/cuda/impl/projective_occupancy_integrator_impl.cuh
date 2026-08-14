@@ -17,6 +17,8 @@ limitations under the License.
 
 #include <nvblox/integrators/projective_occupancy_integrator.h>
 
+#include <limits>
+
 #include <nvblox/integrators/internal/cuda/impl/projective_integrator_impl.cuh>
 
 #include "nvblox/integrators/internal/integrators_common.h"
@@ -37,9 +39,19 @@ struct UpdateOccupancyVoxelFunctor {
     // Get the update summand depending on the measured depth
     float log_odds_update;
 
-    // Unobserved if the voxel is behind the object or if depth pixel is
-    // inactive
-    if (!is_active || voxel_depth_m > surface_depth_measured +
+    // Organized no-return beams write a far sentinel depth so the ray still
+    // carves. At 1 m voxels a thin pole shares a cell with sky, and the normal
+    // free prior lets those miss rays erase the pole, so misses get their own
+    // weaker free vote: hits still win while the voxel is observed, and sky
+    // desticks slowly once the vehicle has passed.
+    //
+    // The threshold sits just under the sentinel rather than at some fixed
+    // range, so a real long-range return keeps the full free prior and the
+    // classification cannot silently change when the sentinel is retuned.
+    // miss_ray_min_depth_m_ is +inf when miss-ray carving is disabled.
+    if (surface_depth_measured >= miss_ray_min_depth_m_) {
+      log_odds_update = miss_ray_log_odds_;
+    } else if (!is_active || voxel_depth_m > surface_depth_measured +
                                           occupied_region_half_width_m_) {
       log_odds_update = unobserved_region_log_odds_;
     } else if (voxel_depth_m >
@@ -66,6 +78,9 @@ struct UpdateOccupancyVoxelFunctor {
       kUnobservedRegionOccupancyProbabilityParamDesc.default_value);
   float occupied_region_half_width_m_ =
       kOccupiedRegionHalfWidthMParamDesc.default_value;
+  float miss_ray_log_odds_ = logOddsFromProbability(
+      kMissRayOccupancyProbabilityParamDesc.default_value);
+  float miss_ray_min_depth_m_ = std::numeric_limits<float>::infinity();
 
   // Min and max values for clipping
   const float kMaxLogOdds_ = logOddsFromProbability(0.99);
