@@ -50,6 +50,13 @@ struct UpdateOccupancyVoxelFunctor {
     // classification cannot silently change when the sentinel is retuned.
     // miss_ray_min_depth_m_ is +inf when miss-ray carving is disabled.
     if (surface_depth_measured >= miss_ray_min_depth_m_) {
+      // A miss is only evidence of free space out to the carve limit. Past it
+      // the beam more likely hit something dark or at grazing incidence than
+      // nothing at all, so leave those voxels untouched.
+      if (miss_ray_max_carve_distance_m_ > 0.f &&
+          voxel_depth_m > miss_ray_max_carve_distance_m_) {
+        return false;
+      }
       log_odds_update = miss_ray_log_odds_;
     } else if (!is_active || voxel_depth_m > surface_depth_measured +
                                           occupied_region_half_width_m_) {
@@ -81,6 +88,8 @@ struct UpdateOccupancyVoxelFunctor {
   float miss_ray_log_odds_ = logOddsFromProbability(
       kMissRayOccupancyProbabilityParamDesc.default_value);
   float miss_ray_min_depth_m_ = std::numeric_limits<float>::infinity();
+  float miss_ray_max_carve_distance_m_ =
+      kMissRayMaxCarveDistanceMParamDesc.default_value;
 
   // Min and max values for clipping
   const float kMaxLogOdds_ = logOddsFromProbability(0.99);

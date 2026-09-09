@@ -191,6 +191,10 @@ void Mapper::setMapperParams(const MapperParams& params) {
       params.occupancy_integrator_params.miss_ray_occupancy_probability);
   lidar_occupancy_integrator().miss_ray_occupancy_probability(
       params.occupancy_integrator_params.miss_ray_occupancy_probability);
+  occupancy_integrator().miss_ray_max_carve_distance_m(
+      params.occupancy_integrator_params.miss_ray_max_carve_distance_m);
+  lidar_occupancy_integrator().miss_ray_max_carve_distance_m(
+      params.occupancy_integrator_params.miss_ray_max_carve_distance_m);
 
   // ======= VIEW CALCULATOR =======
   tsdf_integrator().view_calculator().raycast_subsampling_factor(

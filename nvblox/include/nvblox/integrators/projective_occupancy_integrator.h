@@ -124,6 +124,19 @@ class ProjectiveOccupancyIntegrator
   /// @param no_return_free_depth_m the sentinel depth in meters
   void miss_ray_sentinel_depth_m(float no_return_free_depth_m);
 
+  /// A parameter getter
+  /// Range beyond which a no-return (miss) ray stops carving free space. Zero
+  /// means carve all the way to the integration limit.
+  /// @returns the miss ray carve limit in meters
+  float miss_ray_max_carve_distance_m() const;
+
+  /// A parameter setter
+  /// See miss_ray_max_carve_distance_m(). Also bounds the raycast used to
+  /// select blocks, so a capped miss ray does not allocate empty sky blocks
+  /// out to the integration limit.
+  /// @param miss_ray_max_carve_distance_m the carve limit in meters
+  void miss_ray_max_carve_distance_m(float miss_ray_max_carve_distance_m);
+
   /// For voxels with a radius, allocate memory and give a small weight and
   /// truncation distance, effectively making these voxels free-space. Does not
   /// affect voxels which are already observed.
@@ -145,6 +158,10 @@ class ProjectiveOccupancyIntegrator
   void setFunctorParameters(const float block_size);
   std::string getIntegratorName() const override;
 
+  // Pushes the miss-ray thresholds into the view calculator so block selection
+  // and voxel update agree on how far a miss ray reaches.
+  void syncViewCalculatorMissRayLimits();
+
   // Sensor model parameters
   float free_region_log_odds_ = logOddsFromProbability(
       kFreeRegionOccupancyProbabilityParamDesc.default_value);
@@ -157,6 +174,8 @@ class ProjectiveOccupancyIntegrator
   float miss_ray_log_odds_ = logOddsFromProbability(
       kMissRayOccupancyProbabilityParamDesc.default_value);
   float miss_ray_min_depth_m_ = std::numeric_limits<float>::infinity();
+  float miss_ray_max_carve_distance_m_ =
+      kMissRayMaxCarveDistanceMParamDesc.default_value;
 
   // Functor which defines the voxel update operation.
   unified_ptr<UpdateOccupancyVoxelFunctor> update_functor_host_ptr_;

@@ -65,8 +65,9 @@ __global__ void combinedBlockIndicesInImageKernel(
     int rows, int cols, const float block_size,
     const float max_integration_distance_m,
     const float max_integration_distance_behind_surface_m,
-    int raycast_subsampling_factor, const Index3D aabb_min,
-    const Index3D aabb_size, bool* aabb_updated) {
+    const float miss_ray_min_depth_m,
+    const float miss_ray_max_carve_distance_m, int raycast_subsampling_factor,
+    const Index3D aabb_min, const Index3D aabb_size, bool* aabb_updated) {
   // First, figure out which pixel we're in.
   const int ray_idx_col = blockIdx.x * blockDim.x + threadIdx.x;
   const int ray_idx_row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -92,12 +93,27 @@ __global__ void combinedBlockIndicesInImageKernel(
   if (depth <= 0.0f) {
     return;
   }
-  if (max_integration_distance_m > 0.0f && depth > max_integration_distance_m) {
-    depth = max_integration_distance_m;
+  // A capped miss ray has no surface to bracket, so it ends at the carve limit
+  // instead of depth-plus-truncation. Selecting fewer blocks here is the point:
+  // an uncapped miss ray allocates empty sky all the way to the integration
+  // limit for every no-return beam.
+  float ray_length_m;
+  if (depth >= miss_ray_min_depth_m && miss_ray_max_carve_distance_m > 0.0f) {
+    ray_length_m = miss_ray_max_carve_distance_m;
+    if (max_integration_distance_m > 0.0f &&
+        ray_length_m > max_integration_distance_m) {
+      ray_length_m = max_integration_distance_m;
+    }
+  } else {
+    if (max_integration_distance_m > 0.0f &&
+        depth > max_integration_distance_m) {
+      depth = max_integration_distance_m;
+    }
+    ray_length_m = depth + max_integration_distance_behind_surface_m;
   }
 
   // Ok now project this thing into space.
-  Vector3f p_C = (depth + max_integration_distance_behind_surface_m) *
+  Vector3f p_C = ray_length_m *
                  sensor.vectorFromPixelIndices(Index2D(pixel_col, pixel_row));
   Vector3f p_L = T_L_C * p_C;
 
@@ -226,8 +242,9 @@ void ViewCalculator::getBlocksByRaycastingPixelsAsync(
                                       *cuda_stream_>>>(
       T_L_C, sensor, depth_frame.dataConstPtr(), depth_frame.rows(),
       depth_frame.cols(), block_size, max_integration_distance_m,
-      max_integration_distance_behind_surface_m, raycast_subsampling_factor_,
-      min_index, aabb_size, aabb_updated_cuda);
+      max_integration_distance_behind_surface_m, miss_ray_min_depth_m_,
+      miss_ray_max_carve_distance_m_, raycast_subsampling_factor_, min_index,
+      aabb_size, aabb_updated_cuda);
   checkCudaErrors(cudaPeekAtLastError());
   combined_kernel_timer.Stop();
 }

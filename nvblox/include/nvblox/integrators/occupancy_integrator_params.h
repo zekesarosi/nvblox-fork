@@ -47,6 +47,16 @@ constexpr Param<float>::Description kMissRayOccupancyProbabilityParamDesc{
     "shares a voxel with the sky behind it, so a miss ray carrying the full "
     "free prior erases it."};
 
+constexpr Param<float>::Description kMissRayMaxCarveDistanceMParamDesc{
+    "miss_ray_max_carve_distance_m", 0.f,
+    "Range beyond which a LiDAR no-return (miss) ray stops carving. A "
+    "no-return is strong evidence of free space near the sensor and weak "
+    "evidence far away, where it mostly means low reflectivity or grazing "
+    "incidence. Capping the carve also bounds block allocation: an uncapped "
+    "miss ray allocates blocks all the way to "
+    "lidar_projective_integrator_max_integration_distance_m. 0 means uncapped "
+    "(carve to the integration limit). Hits are unaffected."};
+
 struct OccupancyIntegratorParams {
   Param<float> free_region_occupancy_probability{
       kFreeRegionOccupancyProbabilityParamDesc};
@@ -57,5 +67,7 @@ struct OccupancyIntegratorParams {
   Param<float> occupied_region_half_width_m{kOccupiedRegionHalfWidthMParamDesc};
   Param<float> miss_ray_occupancy_probability{
       kMissRayOccupancyProbabilityParamDesc};
+  Param<float> miss_ray_max_carve_distance_m{
+      kMissRayMaxCarveDistanceMParamDesc};
 };
 }  // namespace nvblox

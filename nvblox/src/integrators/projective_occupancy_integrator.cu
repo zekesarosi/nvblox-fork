@@ -50,6 +50,8 @@ void ProjectiveOccupancyIntegrator::setFunctorParameters(
       occupied_region_half_width_m_;
   update_functor_host_ptr_->miss_ray_log_odds_ = miss_ray_log_odds_;
   update_functor_host_ptr_->miss_ray_min_depth_m_ = miss_ray_min_depth_m_;
+  update_functor_host_ptr_->miss_ray_max_carve_distance_m_ =
+      miss_ray_max_carve_distance_m_;
 
   // Make sure all blocks that are considered
   // occupied by the sensor model are updated.
@@ -125,6 +127,7 @@ void ProjectiveOccupancyIntegrator::miss_ray_sentinel_depth_m(
     float no_return_free_depth_m) {
   if (no_return_free_depth_m <= 0.f) {
     miss_ray_min_depth_m_ = std::numeric_limits<float>::infinity();
+    syncViewCalculatorMissRayLimits();
     return;
   }
   // Sit just under the sentinel. Nearest-neighbour interpolation reproduces it
@@ -133,6 +136,27 @@ void ProjectiveOccupancyIntegrator::miss_ray_sentinel_depth_m(
   constexpr float kSentinelMarginM = 0.5f;
   miss_ray_min_depth_m_ =
       std::max(0.f, no_return_free_depth_m - kSentinelMarginM);
+  syncViewCalculatorMissRayLimits();
+}
+
+float ProjectiveOccupancyIntegrator::miss_ray_max_carve_distance_m() const {
+  return miss_ray_max_carve_distance_m_;
+}
+
+void ProjectiveOccupancyIntegrator::miss_ray_max_carve_distance_m(
+    float miss_ray_max_carve_distance_m) {
+  CHECK(miss_ray_max_carve_distance_m >= 0.f)
+      << "Miss ray carve distance must be non-negative.";
+  miss_ray_max_carve_distance_m_ = miss_ray_max_carve_distance_m;
+  syncViewCalculatorMissRayLimits();
+}
+
+void ProjectiveOccupancyIntegrator::syncViewCalculatorMissRayLimits() {
+  // The functor skips voxels past the carve limit, but the voxels only get
+  // visited at all if the raycast selected their block. Keep both ends in step
+  // so a capped miss ray does not allocate sky blocks it will never write.
+  view_calculator().missRayRaycastLimits(miss_ray_min_depth_m_,
+                                         miss_ray_max_carve_distance_m_);
 }
 
 std::string ProjectiveOccupancyIntegrator::getIntegratorName() const {
@@ -163,6 +187,8 @@ parameters::ParameterTreeNode ProjectiveOccupancyIntegrator::getParameterTree(
                             occupied_region_half_width_m_),
           ParameterTreeNode("miss_ray_log_odds:", miss_ray_log_odds_),
           ParameterTreeNode("miss_ray_min_depth_m:", miss_ray_min_depth_m_),
+          ParameterTreeNode("miss_ray_max_carve_distance_m:",
+                            miss_ray_max_carve_distance_m_),
           ProjectiveIntegrator<OccupancyVoxel>::getParameterTree(),
       });
 }

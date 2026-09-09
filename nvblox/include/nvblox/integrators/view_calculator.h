@@ -16,6 +16,7 @@ limitations under the License.
 #pragma once
 
 #include <deque>
+#include <limits>
 #include <memory>
 
 #include "nvblox/core/cuda_stream.h"
@@ -127,6 +128,17 @@ class ViewCalculator {
   /// @param cache_last_viewpoint See cache_last_viewpoint()
   void cache_last_viewpoint(const bool cache_last_viewpoint);
 
+  /// @brief Bounds how far rays carrying a LiDAR no-return sentinel depth are
+  /// raycast when selecting blocks. Without this a miss ray selects (and the
+  /// integrator then allocates) blocks all the way to the integration limit,
+  /// even though the occupancy update stops at the carve limit.
+  /// @param miss_ray_min_depth_m Depth at or above which a pixel is a miss.
+  /// Infinity disables miss-ray handling.
+  /// @param miss_ray_max_carve_distance_m Range at which miss rays stop. Zero
+  /// means no limit beyond the usual max integration distance.
+  void missRayRaycastLimits(float miss_ray_min_depth_m,
+                            float miss_ray_max_carve_distance_m);
+
   /// @brief Gets the viewpoint cache
   /// @param calculation_type For each calculation type there is a separate
   /// cache. Specifying the calculation type selects the respective cache to
@@ -191,6 +203,11 @@ class ViewCalculator {
       kWorkspaceBoundsMinCornerYDesc.default_value;
   float workspace_bounds_max_corner_y_m_ =
       kWorkspaceBoundsMaxCornerYDesc.default_value;
+
+  // Miss-ray raycast bounds. Inert unless miss-ray carving is configured on the
+  // owning occupancy integrator.
+  float miss_ray_min_depth_m_ = std::numeric_limits<float>::infinity();
+  float miss_ray_max_carve_distance_m_ = 0.f;
 
   // Caching the last viewpoint calculation.
   bool cache_last_viewpoint_ = true;

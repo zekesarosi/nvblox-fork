@@ -87,6 +87,13 @@ void ViewCalculator::cache_last_viewpoint(const bool cache_last_viewpoint) {
   cache_last_viewpoint_ = cache_last_viewpoint;
 }
 
+void ViewCalculator::missRayRaycastLimits(
+    const float miss_ray_min_depth_m,
+    const float miss_ray_max_carve_distance_m) {
+  miss_ray_min_depth_m_ = miss_ray_min_depth_m;
+  miss_ray_max_carve_distance_m_ = miss_ray_max_carve_distance_m;
+}
+
 std::shared_ptr<ViewpointCache> ViewCalculator::get_viewpoint_cache(
     const CalculationType calculation_type) const {
   switch (calculation_type) {
@@ -200,8 +207,9 @@ __global__ void combinedBlockIndicesInImageKernel(
     int rows, int cols, const float block_size,
     const float max_integration_distance_m,
     const float max_integration_distance_behind_surface_m,
-    int raycast_subsampling_factor, const Index3D aabb_min,
-    const Index3D aabb_size, bool* aabb_updated) {
+    const float miss_ray_min_depth_m,
+    const float miss_ray_max_carve_distance_m, int raycast_subsampling_factor,
+    const Index3D aabb_min, const Index3D aabb_size, bool* aabb_updated) {
   // First, figure out which pixel we're in.
   const int ray_idx_col = blockIdx.x * blockDim.x + threadIdx.x;
   const int ray_idx_row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -228,10 +236,16 @@ __global__ void combinedBlockIndicesInImageKernel(
     return;
   }
 
+  // A capped miss ray has no surface to bracket, so it ends at the carve limit
+  // instead of depth-plus-truncation.
+  float ray_depth_m = depth + max_integration_distance_behind_surface_m;
+  if (depth >= miss_ray_min_depth_m && miss_ray_max_carve_distance_m > 0.0f) {
+    ray_depth_m = miss_ray_max_carve_distance_m;
+  }
+
   // Ok now project this thing into space.
-  Vector3f p_C = camera.unprojectFromPixelIndices(
-      Index2D(pixel_col, pixel_row),
-      depth + max_integration_distance_behind_surface_m);
+  Vector3f p_C = camera.unprojectFromPixelIndices(Index2D(pixel_col, pixel_row),
+                                                  ray_depth_m);
 
   // Truncate if we're exceeding max integration distance
   if (max_integration_distance_m > 0.0f &&
@@ -369,8 +383,9 @@ void ViewCalculator::getBlocksByRaycastingPixelsAsync(
                                       *cuda_stream_>>>(
       T_L_C, sensor, depth_frame.dataConstPtr(), depth_frame.rows(),
       depth_frame.cols(), block_size, max_integration_distance_m,
-      max_integration_distance_behind_surface_m, raycast_subsampling_factor_,
-      min_index, aabb_size, aabb_updated_cuda);
+      max_integration_distance_behind_surface_m, miss_ray_min_depth_m_,
+      miss_ray_max_carve_distance_m_, raycast_subsampling_factor_, min_index,
+      aabb_size, aabb_updated_cuda);
   checkCudaErrors(cudaPeekAtLastError());
   combined_kernel_timer.Stop();
 }
